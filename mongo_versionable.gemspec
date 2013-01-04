@@ -20,4 +20,5 @@ Gem::Specification.new do |gem|
   # Dependencies
   gem.add_dependency 'mongo'
   gem.add_dependency 'bson_ext'
+  gem.add_dependency 'activesupport'
 end

@@ -1,5 +1,7 @@
+require 'active_support/core_ext/string/inflections'
 require "mongo_versionable/version"
 
 module MongoVersionable
-  # Your code goes here...
 end
+
+require 'mongo_versionable/collection'
