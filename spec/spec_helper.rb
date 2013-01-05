@@ -18,3 +18,16 @@ end
 
 require 'pry'
 require 'mongo_versionable'
+
+# A convenience function for keeping the database clean. This can be run in a 
+# before(:each) handler.
+def clean_db
+  db = MongoVersionable.database
+  collections = db.collection_names - ["system.indexes", "system.profile"]
+  collections.each{|c| db[c].drop }
+end
+
+MongoVersionable.use_connection Mongo::MongoClient.new
+MongoVersionable.use_database "mongo_versionable_test"
+
+# END

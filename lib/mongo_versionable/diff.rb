@@ -10,7 +10,7 @@ module MongoVersionable
     end
 
     # For a hash to look like a difference hash, it must be a Hash, it must
-    # have keys, and it must not have any keys but :_rm and :_ch. 
+    # have keys, and it must not have any keys but '_rm' and '_ch'. 
     #
     # Even though a difference hash can be the empty hash, I don't want
     # to assume that the empty hash is a difference hash, because the
@@ -18,7 +18,7 @@ module MongoVersionable
     def self.looks_like_diff_hash(x)
       return false unless x.kind_of? Hash
       return false if x.keys.empty?
-      return (x.keys - [:_rm, :_ch]).empty?
+      return (x.keys - ['_rm', '_ch']).empty?
     end
 
     # Recursively go through and apply the diff to document a.
@@ -32,13 +32,12 @@ module MongoVersionable
       raise ArgumentError, "Doesn't look like a difference hash" unless
         looks_like_diff_hash diff_hash
       result = a.dup
-      diff_hash[:_rm].each{|k| result.delete k} if diff_hash.include? :_rm
-      if diff_hash.include? :_ch
-        diff_hash[:_ch].each do |key,val|
+      diff_hash['_rm'].each{|k| result.delete k} if diff_hash.include? '_rm'
+      if diff_hash.include? '_ch'
+        diff_hash['_ch'].each do |key,val|
           if looks_like_diff_hash val
             result[key] = apply_to(a[key], val)
           elsif val.respond_to? :initialize_copy
-            binding.pry
             result[key] = val.dup
           else
             result[key] = val
@@ -85,8 +84,8 @@ module MongoVersionable
     # Use the (possibly recursive) structure of the diff to make a corresponding hash.
     def hash
       h = {}
-      h[:_rm] = removed_keys unless removed_keys.empty?
-      h[:_ch] = Hash[changes.collect {|k,v| [k, v.is_a?(Diff) ? v.hash : v]}] unless
+      h['_rm'] = removed_keys unless removed_keys.empty?
+      h['_ch'] = Hash[changes.collect {|k,v| [k, v.is_a?(Diff) ? v.hash : v]}] unless
         changes.empty?
       h
     end

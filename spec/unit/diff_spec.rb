@@ -45,23 +45,23 @@ describe "Diff unit test" do
 
   it "can return a hash of the differences for a one-layer object" do
     diff = MongoVersionable::Diff.new({:a => 1, :b => 2}, {:a => 10, :c => 3})
-    diff.hash.should == {:_rm => [:b], :_ch => {:a => 10, :c => 3}}
+    diff.hash.should == {'_rm' => [:b], '_ch' => {:a => 10, :c => 3}}
   end
 
   it "can return a hash for the differences in a nested object" do
     o1 = {:a => 1, :b => {:c => 3, :d => 4, :e => {:f => 6}}}
     o2 = {:A => 1, :b => {:c => 30, :d => 4, :e => {:f => 60}}}
     diff = MongoVersionable::Diff.new o1, o2
-    diff.hash.should == {:_rm => [:a], :_ch => {:A => 1, 
-      :b => {:_ch => {:c => 30, :e => {:_ch => {:f => 60}}}}}}
+    diff.hash.should == {'_rm' => [:a], '_ch' => {:A => 1, 
+      :b => {'_ch' => {:c => 30, :e => {'_ch' => {:f => 60}}}}}}
   end
 
   it "doesn't see changes in nested hashes that haven't changed" do
     o1 = {:a => 1, :b => {:c => 3, :d => 4, :e => {:f => 6}}}
     o2 = {:A => 1, :b => {:c => 30, :d => 4, :e => {:f => 6}}}
     diff = MongoVersionable::Diff.new o1, o2
-    diff.hash.should == {:_rm => [:a], :_ch => {:A => 1, 
-      :b => {:_ch => {:c => 30}}}}
+    diff.hash.should == {'_rm' => [:a], '_ch' => {:A => 1, 
+      :b => {'_ch' => {:c => 30}}}}
   end
 
   it "returns an empty hash when there are no differences" do
@@ -73,18 +73,18 @@ describe "Diff unit test" do
   end
 
   it "can apply a diff" do
-    MongoVersionable::Diff.apply_to({:a => 1}, {:_ch => {:b => 2}}).
+    MongoVersionable::Diff.apply_to({:a => 1}, {'_ch' => {:b => 2}}).
       should == {:a => 1, :b => 2}
   end
 
   it "can apply a nested set of changes" do
-    dh = {:_ch => {:b => 2, :c => {:_ch => {:d => 40}}}}
+    dh = {'_ch' => {:b => 2, :c => {'_ch' => {:d => 40}}}}
     MongoVersionable::Diff.apply_to({:a => 1, :c => {:d => 4}}, dh).
       should == {:a => 1, :b => 2, :c => {:d => 40}}
   end
 
   it "can apply a nested key removal" do
-    dh = {:_ch => {:b => 2, :c => {:_rm => [:d]}}}
+    dh = {'_ch' => {:b => 2, :c => {'_rm' => [:d]}}}
     MongoVersionable::Diff.apply_to({:a => 1, :c => {:d => 4}}, dh).
       should == {:a => 1, :b => 2, :c => {}}
   end
