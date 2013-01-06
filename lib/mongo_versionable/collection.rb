@@ -209,5 +209,15 @@ module MongoVersionable
     def version_serialization_method
       self.class.version_serialization_method
     end
+
+    # Find an old version of this instance
+    def reconstruct_version_at(t)
+      self_class.reconstruct_version_at t, versionable_deduce_id
+    end
+
+    # Override this method if you need another way of getting the id
+    def versionable_deduce_id
+      respond_to?(:id) ? id : self['_id']
+    end
   end
 end

@@ -82,20 +82,29 @@ describe "Collection integration" do
         old_version['goal'].should == 'obtain enlightenment'
       end
 
+      it "can reconstruct a version from an instance" do
+        old_version = @goal.reconstruct_version_at @when
+        old_version['goal'].should == 'obtain enlightenment'
+      end
+
       it "only keeps a limited number of diffs" do
         @goal.who = 'Duckie'
+        v1 = @goal.as_json
         @goal.snap_version
         t1 = MongoVersionable::FastTime.new.fractional_seconds
 
         @goal.goal = 'Quack'
+        v2 = @goal.as_json
         @goal.snap_version
         t2 = MongoVersionable::FastTime.new.fractional_seconds
 
         @goal.goal = 'Quack quack!'
+        v3 = @goal.as_json
         @goal.snap_version
         t3 = MongoVersionable::FastTime.new.fractional_seconds
 
         @goal.goal = 'Quack quack quack!!'
+        v4 = @goal.as_json
         @goal.snap_version
         t4 = MongoVersionable::FastTime.new.fractional_seconds
 
@@ -105,6 +114,11 @@ describe "Collection integration" do
 
         vset = LifeGoal.find_version_set @goal.id, t3
         vset['diffs'].length.should == 1
+
+        LifeGoal.reconstruct_version_at(t1, @goal.id).should == v1
+        LifeGoal.reconstruct_version_at(t2, @goal.id).should == v2
+        LifeGoal.reconstruct_version_at(t3, @goal.id).should == v3
+        LifeGoal.reconstruct_version_at(t4, @goal.id).should == v4
       end
     end
   end
