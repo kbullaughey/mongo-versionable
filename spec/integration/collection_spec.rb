@@ -55,6 +55,13 @@ describe "Collection integration" do
       LifeGoal.version_collection.find_one['tip']['_id'].should == @goal.id
     end
 
+    it "can snap the persisted version using an instance" do
+      @goal.goal = "escape rebirth"
+      @goal.snap_persisted_version
+      g2 = @goal.reconstruct_version_at MongoVersionable::FastTime.new
+      g2['goal'].should == "obtain enlightenment"
+    end
+
     it "can create a new version set using a query" do
       LifeGoal.snap_version_by_query :who => 'Buddha'
       LifeGoal.version_collection.find_one['tip']['_id'].should == @goal.id

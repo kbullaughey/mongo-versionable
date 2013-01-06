@@ -205,6 +205,12 @@ module MongoVersionable
       self_class.snap_version new_tip
     end
 
+    # Instead of snapping the instance, snap whatever version is currently 
+    # persisted.
+    def snap_persisted_version
+      self_class.snap_version_by_id versionable_deduce_id
+    end
+
     # Provide instance methods of various class methods
     def version_serialization_method
       self.class.version_serialization_method
