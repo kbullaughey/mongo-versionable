@@ -46,6 +46,7 @@ describe "Collection integration" do
 
   context "A saved document" do
     before :each do
+      @before_time = MongoVersionable::FastTime.new - 60
       @goal = LifeGoal.new('obtain enlightenment', 'Buddha')
       LifeGoal.collection.save @goal.as_json
     end
@@ -91,6 +92,12 @@ describe "Collection integration" do
 
       it "can reconstruct a version from an instance" do
         old_version = @goal.reconstruct_version_at @when
+        old_version['goal'].should == 'obtain enlightenment'
+      end
+
+      it "reconstructs a version after t if none exists before it" do
+        old_version = @goal.reconstruct_version_at @before_time
+        old_version.should_not be_nil
         old_version['goal'].should == 'obtain enlightenment'
       end
 

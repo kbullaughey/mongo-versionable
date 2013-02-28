@@ -107,11 +107,17 @@ module MongoVersionable
       # Find a version set by object id and (optionally) time. If no time is
       # given then the most recent version set will be returned. If a time is
       # given then it will be the most recent one started that is before the
-      # given time, t.
+      # given time, t, unless no version is before t, in which case the version
+      # closest after t will be returned.
       def find_version_set(id, t = nil)
         query = {'tip._id' => id}
-        query.merge! :t => {:$lt => t} unless t.nil?
-        version_collection.find_one(query, {:sort => {:t => Mongo::DESCENDING}})
+        preferred_query = query.merge :t => {:$lt => t} unless t.nil?
+        v = version_collection.find_one preferred_query, {:sort => {:t => Mongo::DESCENDING}}
+        if v.nil? and !t.nil?
+          backup_query = query.merge :t => {:$gt => t}
+          v = version_collection.find_one(backup_query, {:sort => {:t => Mongo::ASCENDING}})
+        end
+        v
       end
 
       # Return the collection object for this classes version collection
