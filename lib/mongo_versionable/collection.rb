@@ -54,6 +54,7 @@ module MongoVersionable
         raise TypeError, "Expecting t to be a FastTime or Float" unless
           t.is_a? Float
         version_set = find_version_set id, t
+        return nil if version_set.nil?
         version = version_set['tip']
         
         # Apply all diffs with obsolescence times greater than t
