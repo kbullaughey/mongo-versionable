@@ -33,7 +33,6 @@ module MongoVersionable
   def self.config
     @config ||= {}
     @config[Thread.current.object_id] ||= {}
-    @config[Thread.current.object_id]
   end
 end
 
