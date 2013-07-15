@@ -111,11 +111,11 @@ module MongoVersionable
       # closest after t will be returned.
       def find_version_set(id, t = nil)
         query = {'tip._id' => id}
-        preferred_query = query.merge :t => {:$lt => t} unless t.nil?
-        v = version_collection.find_one preferred_query, {:sort => {:t => Mongo::DESCENDING}}
+        query.merge! :t => {:$lt => t} unless t.nil?
+        v = version_collection.find_one query, {:sort => {:t => Mongo::DESCENDING}}
         if v.nil? and !t.nil?
-          backup_query = query.merge :t => {:$gt => t}
-          v = version_collection.find_one(backup_query, {:sort => {:t => Mongo::ASCENDING}})
+          query.merge! :t => {:$gt => t}
+          v = version_collection.find_one(query, {:sort => {:t => Mongo::ASCENDING}})
         end
         v
       end

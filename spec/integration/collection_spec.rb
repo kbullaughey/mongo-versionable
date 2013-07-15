@@ -63,6 +63,16 @@ describe "Collection integration" do
       g2['goal'].should == "obtain enlightenment"
     end
 
+    it "distinct persisted versions end up with separate records" do
+      goal1 = LifeGoal.new('obtain enlightenment', 'Buddha')
+      LifeGoal.collection.save(goal1.as_json)
+      goal1.snap_persisted_version
+      goal2 = LifeGoal.new('die for sins', 'Jesus')
+      LifeGoal.collection.save(goal2.as_json)
+      goal2.snap_persisted_version
+      LifeGoal.version_collection.count.should == 2
+    end
+
     it "can create a new version set using a query" do
       LifeGoal.snap_version_by_query :who => 'Buddha'
       LifeGoal.version_collection.find_one['tip']['_id'].should == @goal.id
