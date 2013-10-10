@@ -86,6 +86,10 @@ describe "Collection integration" do
         @goal.snap_version
       end
 
+      it "can see when the most recent version was snapped" do
+        @goal.last_version_at.should be_a(Float)
+      end
+
       it "can save a second version and it gets diffed" do
         vset = LifeGoal.version_collection.find_one 'tip._id' => @goal.id
         vset['diffs'].length.should == 1

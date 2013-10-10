@@ -232,5 +232,10 @@ module MongoVersionable
     def versionable_deduce_id
       respond_to?(:id) ? id : self['_id']
     end
+
+    def last_version_at
+      ver = self_class.find_version_set(versionable_deduce_id)
+      ver and ver['t']
+    end
   end
 end
