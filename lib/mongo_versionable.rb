@@ -2,6 +2,16 @@ require 'active_support/core_ext/string/inflections'
 require 'mongo'
 
 module MongoVersionable
+  def self.reconnect_method(&block)
+    raise ArgumentError, "Must give block" unless block_given?
+    @reconnect = block
+  end
+
+  def self.reconnect
+    raise "No reconnect method defined" if @reconnect.nil?
+    @reconnect.call
+  end
+
   # Specify a MongoClient object
   def self.use_connection(conn)
     raise TypeError, "Expecting MongoClient object" unless 
@@ -21,7 +31,10 @@ module MongoVersionable
 
   # Accessor for getting the connection object
   def self.connection
-    config[:connection] or raise RuntimeError, "Connection never specified"
+    if config[:connection].nil? and @reconnect
+      use_connection reconnect
+    end
+    config[:connection] or raise RuntimeError, "Connection missing"
   end
 
   # Accessor for the MongoDB object
@@ -29,10 +42,14 @@ module MongoVersionable
     connection[config[:database]]
   end
 
+  def self.execution_context_id
+    "#{Process.pid}:#{Thread.current.object_id}"
+  end
+
   # I think this will be threadsafe
   def self.config
     @config ||= {}
-    @config[Thread.current.object_id] ||= {}
+    @config[execution_context_id] ||= {}
   end
 end
 

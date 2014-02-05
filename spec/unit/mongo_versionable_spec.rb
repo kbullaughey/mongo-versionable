@@ -5,7 +5,7 @@ describe "MongoVersionable module unit test" do
     MongoVersionable.disconnect
     expect { 
       MongoVersionable.connection
-    }.to raise_error(RuntimeError, /Connection never specified/)
+    }.to raise_error(RuntimeError, /Connection missing/)
   end
 
   context "with a connection" do
