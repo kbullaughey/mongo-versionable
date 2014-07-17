@@ -109,10 +109,9 @@ describe "Collection integration" do
         old_version['goal'].should == 'obtain enlightenment'
       end
 
-      it "reconstructs a version after t if none exists before it" do
+      it "doesn't reconstructs a version after t if none exists before it" do
         old_version = @goal.reconstruct_version_at @before_time
-        old_version.should_not be_nil
-        old_version['goal'].should == 'obtain enlightenment'
+        old_version.should be_nil
       end
 
       it "only keeps a limited number of diffs" do

@@ -112,12 +112,12 @@ module MongoVersionable
       def find_version_set(id, t = nil)
         query = {'tip._id' => id}
         query.merge! :t => {:$lt => t} unless t.nil?
-        v = version_collection.find_one query, {:sort => {:t => Mongo::DESCENDING}}
-        if v.nil? and !t.nil?
-          query.merge! :t => {:$gt => t}
-          v = version_collection.find_one(query, {:sort => {:t => Mongo::ASCENDING}})
-        end
-        v
+        version_collection.find_one query, {:sort => {:t => Mongo::DESCENDING}}
+#        if v.nil? and !t.nil?
+#          query.merge! :t => {:$gt => t}
+#          v = version_collection.find_one(query, {:sort => {:t => Mongo::ASCENDING}})
+#        end
+#        v
       end
 
       # Return the collection object for this classes version collection
