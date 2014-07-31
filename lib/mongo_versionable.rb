@@ -53,6 +53,7 @@ module MongoVersionable
   end
 end
 
+require 'mongo_versionable/exceptions'
 require 'mongo_versionable/version'
 require 'mongo_versionable/fast_time'
 require 'mongo_versionable/diff'

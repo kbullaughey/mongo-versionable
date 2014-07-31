@@ -56,7 +56,8 @@ module MongoVersionable
     # Produce a diff of a and b which allows b to be reconstructed from a by 
     # applying the diff.
     def initialize(a,b)
-      raise TypeError, "Expecting Hashes" unless Diff.both_hashes? a, b
+      raise TypeError, "Expecting Hashes (got #{a.class}/#{b.class})" unless
+        Diff.both_hashes? a, b
       self.removed_keys = a.keys - b.keys
       self.changes = {}
       b.keys.each do |key|

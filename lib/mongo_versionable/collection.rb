@@ -41,6 +41,18 @@ module MongoVersionable
         snap_version_by_query :_id => id
       end
 
+      def last_time_of_version_set(version_set)
+        diffs = version_set['diffs']
+        return version_set['t'] if diffs.nil? or diffs.empty?
+        diffs.last['t']
+      end
+
+      def last_version_at(id)
+        version_set = find_version_set id
+        return nil if version_set.nil?
+        last_time_of_version_set version_set
+      end
+
       # Use a query to locate the first object, and snap its version. Only the
       # first object will be versioned.
       def snap_version_by_query(doc, opts = {})
@@ -65,29 +77,85 @@ module MongoVersionable
         version
       end
 
-      # Alter the history in such a way that it is consistent with the object
-      # have data represented by ver at time t.
-      def inject_historical_version(t, ver)
-        version_set = find_version_set ver['_id'], t
+      # Returns an array of tuples of the form (t, ver)
+      def explode_versions(version_set)
         # Instantiate all the versions described by diffs in this version set.
+        v = version_set['tip']
+        versions = [v]
 
+        # We work our way backward in time, but unshifting onto the versions
+        # array so that the result is a forward-chronological array of versions
+        # with the right most equaling the tip and the left most equaling the
+        # very first snapped version for this version set.
+        diffs = version_set['diffs']
+        diffs.reverse.each do |diff|
+          v = Diff.apply_to v, diff['d']
+          versions.unshift v
+        end
+
+        # Get the corresponding array of times. The first time is the main one
+        # listed on the version_set. Followed by the times of each diff.
+        times = [version_set['t']] + diffs.collect{|diff| diff['t']}
+        [times,versions].transpose
       end
 
-      # Take a serialized object (Hash) and snap a version of it. Diffs are
-      # stored backwards from the tip. So the tip is the latest copy and older
-      # versions are reconstructed by applying diffs successively to a tip.
+      # Alter the history in such a way that it is consistent with the object
+      # have data represented by ver at time t.
       #
-      # new_tip must have an _id
-      def snap_version(new_tip)
-        raise TypeError, "Expecting Hash" unless new_tip.kind_of? Hash
-        raise ArgumentError, "No _id" unless new_tip.include? '_id'
-        version_set = find_version_set new_tip['_id']
+      # The algorithm works by reconstructing all versions, then injecting the
+      # new version to the correct spot in the chronological list, and then
+      # reconstructing the version_set based on the new sequence.
+      #
+      # Warning: This method can cause conflicts if versions to the object are
+      # concurrently snapped while it is running.
+      #
+      # TODO: Write specs for cases involving multiple tips.
+      def inject_historical_version(t, new_ver)
+        id = new_ver['_id']
+        if t > last_version_at(id)
+          snap_version(new_ver, t)
+          return
+        end
+        version_set = find_version_set id, t
 
-        # If there's no version set yet or if the one found has too many diffs, 
-        # create a new one.
-        return new_version_set(new_tip) if version_set.nil? or 
-          version_set['diffs'].length >= versions_between_tips
+        # We'll use this query later when we adjust all subsequent version sets.
+        subsequent_query = {'tip._id' => id}
 
+        version_sets = []
+        unless version_set.nil?
+          raise InvalidHistory, "Invalid version_set time" if
+            version_set['t'] > t
+          version_sets.push version_set
+
+          # Adjust the query so we only get version sets after this one.
+          last_time = last_time_of_version_set version_set
+          subsequent_query.merge! t: {:$gt => last_time}
+        end
+
+        # Get all the version sets (if any) that follow.
+        opts = {:sort => {:t => Mongo::ASCENDING}}
+        version_sets += version_collection.find(subsequent_query, opts).to_a
+
+        versions = version_sets.flat_map{|vset| explode_versions vset}
+
+        # Remove the version sets we'll rewrite
+        version_set_ids = version_sets.collect{|s| s['_id']}
+        version_collection.remove _id: {:$in => version_set_ids}
+
+        # Split the time,version tuples into those that are before the injection
+        # and those that are later.
+        earlier, later = versions.partition{|tm,v| tm < t}
+
+        # Make a new list including the injected version
+        versions = earlier + [[t,new_ver]] + later
+
+        # Re-snap all the versions
+        versions.each do |t,ver|
+          snap_version ver, t
+        end
+      end
+
+      def append_version(version_set, new_tip, t)
         # Get the current tip of the version set
         old_tip = version_set['tip']
 
@@ -98,18 +166,48 @@ module MongoVersionable
         # Put the new tip on the version set and add the diff so we can recreate
         # the version we just supplanted.
         version_set['tip'] = new_tip
-        t = FastTime.new.fractional_seconds
         version_set['diffs'].push :t => t, :d => diff
+      end
 
-        # Save the updated version set.
+      # Take a serialized object (Hash) and snap a version of it. Diffs are
+      # stored backwards from the tip. So the tip is the latest copy and older
+      # versions are reconstructed by applying diffs successively to a tip.
+      #
+      # new_tip must have an _id
+      def snap_version(new_tip, t=nil)
+        raise TypeError, "Expecting Hash" unless new_tip.kind_of? Hash
+        raise ArgumentError, "No _id" unless new_tip.include? '_id'
+        version_set = find_version_set new_tip['_id']
+
+        # If there's no version set yet or if the one found has too many diffs, 
+        # create a new one.
+        if version_set.nil? or version_set['diffs'].length >= versions_between_tips
+          version_set = new_version_set(new_tip)
+          # If we're given a particular time, we need to set that
+          unless t.nil?
+            version_set['t'] = t
+            version_collection.save version_set
+          end
+          return
+        end
+
+        # Default time is now.
+        t = FastTime.new.fractional_seconds if t.nil?
+
+        # Append the version and save the set.
+        append_version version_set, new_tip, t
         version_collection.save version_set
       end
 
+      def unpersisted_new_version_set(tip, t)
+        doc = {:tip => tip, :t => t, :diffs => []}
+      end
+
       # Create a new version set, starting with tip.
-      def new_version_set(tip)
-        doc = {:tip => tip, :t => FastTime.new.fractional_seconds, 
-          :diffs => []}
-        version_collection.insert doc
+      def new_version_set(tip, t=FastTime.new.fractional_seconds)
+        version_set = unpersisted_new_version_set(tip, t)
+        version_collection.insert version_set
+        version_set
       end
 
       # Find a version set by object id and (optionally) time. If no time is
@@ -207,6 +305,11 @@ module MongoVersionable
     def_delegators :self_class, :version_serialization_method, 
       :version_collection_name, :versions_between_tips, :version_collection
 
+    def inject_historical_version_at(t)
+      new_tip = send(version_serialization_method)
+      self.class.inject_historical_version t, new_tip
+    end
+
     # Use the configured serialization method to write a version of the current 
     # instance.
     def snap_version
@@ -236,8 +339,7 @@ module MongoVersionable
     end
 
     def last_version_at
-      ver = self_class.find_version_set(versionable_deduce_id)
-      ver and ver['t']
+      self.class.last_version_at versionable_deduce_id
     end
   end
 end

@@ -82,12 +82,54 @@ describe "Collection integration" do
       before :each do
         @goal.snap_version
         @when = MongoVersionable::FastTime.new.fractional_seconds
+        sleep 0.02
+        @when2 = MongoVersionable::FastTime.new.fractional_seconds
         @goal.goal = 'reach nirvana'
         @goal.snap_version
       end
 
+      it "can inject an intermediate version" do
+        goal_at_when = @goal.reconstruct_version_at @when
+        expect(goal_at_when['goal']).to eq('obtain enlightenment')
+        @goal.goal = 'have a coffee'
+        @goal.inject_historical_version_at @when2 
+        vset = LifeGoal.version_collection.find_one 'tip._id' => @goal.id
+        expect(vset['diffs'].length).to eq(2)
+        expect(@goal.reconstruct_version_at(@when)['goal']).to eq('obtain enlightenment')
+        expect(@goal.reconstruct_version_at(@when2+1e-05)['goal']).to eq('have a coffee')
+        now = MongoVersionable::FastTime.new.fractional_seconds
+        expect(@goal.reconstruct_version_at(now)['goal']).to eq('reach nirvana')
+      end
+
+      it "can inject a pre-history version" do
+        @goal.goal = 'have a coffee'
+        when0 = @before_time.fractional_seconds
+        @goal.inject_historical_version_at when0
+        now = MongoVersionable::FastTime.new.fractional_seconds
+        opts = {sort: [['t', Mongo::ASCENDING]]}
+        vsets = LifeGoal.version_collection.find({'tip._id' => @goal.id}, opts).to_a
+        expect(vsets.length).to eq(1)
+        expect(vsets[0]['diffs'].length).to eq(2)
+        expect(@goal.reconstruct_version_at(when0+1)['goal']).to eq('have a coffee')
+        expect(@goal.reconstruct_version_at(@when)['goal']).to eq('obtain enlightenment')
+        expect(@goal.reconstruct_version_at(now)['goal']).to eq('reach nirvana')
+      end
+
+      it "can inject a post-history version" do
+        when3 = MongoVersionable::FastTime.new.fractional_seconds
+        @goal.goal = 'have a coffee'
+        now = MongoVersionable::FastTime.new.fractional_seconds
+        @goal.inject_historical_version_at now
+        vset = LifeGoal.version_collection.find_one 'tip._id' => @goal.id
+        expect(vset['diffs'].length).to eq(2)
+        expect(@goal.reconstruct_version_at(@when)['goal']).to eq('obtain enlightenment')
+        expect(@goal.reconstruct_version_at(when3)['goal']).to eq('reach nirvana')
+        expect(@goal.reconstruct_version_at(now+1)['goal']).to eq('have a coffee')
+      end
+
       it "can see when the most recent version was snapped" do
         @goal.last_version_at.should be_a(Float)
+        @goal.last_version_at.should > @when
       end
 
       it "can save a second version and it gets diffed" do
