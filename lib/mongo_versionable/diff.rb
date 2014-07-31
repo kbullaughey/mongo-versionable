@@ -1,3 +1,5 @@
+require 'active_support/core_ext/object/deep_dup'
+
 module MongoVersionable
   class Diff
     #--------------
@@ -23,22 +25,20 @@ module MongoVersionable
 
     # Recursively go through and apply the diff to document a.
     #
-    # Generally the returned document will be a copy, however this is not
-    # always possible. If diff_hash is the empty hash, then a is returned. This
-    # means that modifications to the result will modify the original.
+    # The returned document will be a copy
     def self.apply_to(a, diff_hash)
       raise ArgumentError, "Cannot apply to nil" if a.nil?
-      return a if diff_hash.kind_of?(Hash) and diff_hash.empty?
+      return a.deep_dup if diff_hash.kind_of?(Hash) and diff_hash.empty?
       raise ArgumentError, "Doesn't look like a difference hash" unless
         looks_like_diff_hash diff_hash
-      result = a.dup
+      result = a.deep_dup
       diff_hash['_rm'].each{|k| result.delete k} if diff_hash.include? '_rm'
       if diff_hash.include? '_ch'
         diff_hash['_ch'].each do |key,val|
           if looks_like_diff_hash val
             result[key] = apply_to(a[key], val)
           elsif val.respond_to? :initialize_copy
-            result[key] = val.dup
+            result[key] = val.initialize_copy
           else
             result[key] = val
           end

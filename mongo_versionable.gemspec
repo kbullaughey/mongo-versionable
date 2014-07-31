@@ -1,4 +1,3 @@
-# -*- encoding: utf-8 -*-
 lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'mongo_versionable/version'
@@ -20,5 +19,5 @@ Gem::Specification.new do |gem|
   # Dependencies
   gem.add_dependency 'mongo'
   gem.add_dependency 'bson_ext'
-  gem.add_dependency 'activesupport'
+  gem.add_dependency 'activesupport', '~> 4.1.1'
 end

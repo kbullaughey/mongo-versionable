@@ -27,6 +27,13 @@ describe "Diff unit test" do
     diff.changes.should == {:a => 1}
   end
 
+  it "makes a copy if an empty diff is applied" do
+    obj = {a: 1}
+    obj_copy = MongoVersionable::Diff.apply_to(obj, {})
+    obj_copy[:a] = 2
+    expect(obj[:a]).to eq(1)
+  end
+
   it "can track changes values in a nested hash" do
     diff = MongoVersionable::Diff.new({:a => {:a1 => 1}}, {:a => {:a1 => 2}})
     diff.changes[:a].should be_a(MongoVersionable::Diff)

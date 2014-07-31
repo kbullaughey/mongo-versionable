@@ -65,6 +65,14 @@ module MongoVersionable
         version
       end
 
+      # Alter the history in such a way that it is consistent with the object
+      # have data represented by ver at time t.
+      def inject_historical_version(t, ver)
+        version_set = find_version_set ver['_id'], t
+        # Instantiate all the versions described by diffs in this version set.
+
+      end
+
       # Take a serialized object (Hash) and snap a version of it. Diffs are
       # stored backwards from the tip. So the tip is the latest copy and older
       # versions are reconstructed by applying diffs successively to a tip.
@@ -107,17 +115,11 @@ module MongoVersionable
       # Find a version set by object id and (optionally) time. If no time is
       # given then the most recent version set will be returned. If a time is
       # given then it will be the most recent one started that is before the
-      # given time, t, unless no version is before t, in which case the version
-      # closest after t will be returned.
+      # given time, t.
       def find_version_set(id, t = nil)
         query = {'tip._id' => id}
         query.merge! :t => {:$lt => t} unless t.nil?
         version_collection.find_one query, {:sort => {:t => Mongo::DESCENDING}}
-#        if v.nil? and !t.nil?
-#          query.merge! :t => {:$gt => t}
-#          v = version_collection.find_one(query, {:sort => {:t => Mongo::ASCENDING}})
-#        end
-#        v
       end
 
       # Return the collection object for this classes version collection
