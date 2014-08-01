@@ -7,6 +7,7 @@
 module MongoVersionable
   class FastTime
     attr_accessor :fractional_seconds
+    alias_method :to_f, :fractional_seconds
   
     #-----------------
     # Instance methods
@@ -23,7 +24,7 @@ module MongoVersionable
           fsec
         end
     end
-  
+
     # Convert to a ruby UTC Time object.
     def to_time
       Time.at(fractional_seconds).utc

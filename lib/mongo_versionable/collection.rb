@@ -38,7 +38,7 @@ module MongoVersionable
     module ClassMethods
       # Snap a version of the object at the given id
       def snap_version_by_id(id)
-        snap_version_by_query :_id => id
+        snap_version_by_query '_id' => id
       end
 
       def last_time_of_version_set(version_set)
@@ -166,7 +166,7 @@ module MongoVersionable
         # Put the new tip on the version set and add the diff so we can recreate
         # the version we just supplanted.
         version_set['tip'] = new_tip
-        version_set['diffs'].push :t => t, :d => diff
+        version_set['diffs'].push 't' => t, 'd' => diff
       end
 
       # Take a serialized object (Hash) and snap a version of it. Diffs are
@@ -183,12 +183,14 @@ module MongoVersionable
         # create a new one.
         if version_set.nil? or version_set['diffs'].length >= versions_between_tips
           version_set = new_version_set(new_tip)
-          # If we're given a particular time, we need to set that
-          unless t.nil?
+          if t.nil?
+            t = version_set['t']
+          else
+            # If we're given a particular time, we need to set that
             version_set['t'] = t
             version_collection.save version_set
           end
-          return
+          return t
         end
 
         # Default time is now.
@@ -197,10 +199,13 @@ module MongoVersionable
         # Append the version and save the set.
         append_version version_set, new_tip, t
         version_collection.save version_set
+
+        # Return the time, in case we want the exact snapshot time.
+        return t
       end
 
       def unpersisted_new_version_set(tip, t)
-        doc = {:tip => tip, :t => t, :diffs => []}
+        doc = {'tip' => tip, 't' => t, 'diffs' => []}
       end
 
       # Create a new version set, starting with tip.
@@ -216,7 +221,7 @@ module MongoVersionable
       # given time, t.
       def find_version_set(id, t = nil)
         query = {'tip._id' => id}
-        query.merge! :t => {:$lt => t} unless t.nil?
+        query.merge! :t => {:$lte => t} unless t.nil?
         version_collection.find_one query, {:sort => {:t => Mongo::DESCENDING}}
       end
 

@@ -36,7 +36,8 @@ describe "Collection integration" do
 
   it "can create a new version set using snap_version" do
     g = LifeGoal.new('conquer the world', 'Ren')
-    g.snap_version
+    ret = g.snap_version
+    expect(ret).to be_kind_of(Float)
     g.version_collection.count.should == 1
     ver_set = g.version_collection.find_one
     ver_set['tip']['_id'].should == g.id

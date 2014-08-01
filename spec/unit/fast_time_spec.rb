@@ -11,6 +11,10 @@ describe MongoVersionable::FastTime do
     diff.should < 1.0
   end
 
+  it "can use the to_f shorthand" do
+    expect(@ft.to_f).to eq(@t.to_f)
+  end
+
   it "can be initialized from a number of seconds" do
     @ft.fractional_seconds.should == @t.to_f
   end
