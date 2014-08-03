@@ -61,12 +61,12 @@ module MongoVersionable
       end
 
       # Reconstruct the version that was snapped most recently before t.
-      def reconstruct_version_at(t, id)
+      def reconstruct_version_at(t, id, default_version=nil)
         t = t.fractional_seconds if t.kind_of? FastTime
         raise TypeError, "Expecting t to be a FastTime or Float" unless
           t.is_a? Float
         version_set = find_version_set id, t
-        return nil if version_set.nil?
+        return default_version if version_set.nil?
         version = version_set['tip']
         
         # Apply all diffs with obsolescence times greater than t
@@ -100,7 +100,9 @@ module MongoVersionable
       end
 
       # Alter the history in such a way that it is consistent with the object
-      # have data represented by ver at time t.
+      # have data represented by `new_ver` at time `t` and any changes introduced in
+      # `new_ver` are rolled forward until they are changed by a subsequent
+      # version.
       #
       # The algorithm works by reconstructing all versions, then injecting the
       # new version to the correct spot in the chronological list, and then
@@ -108,7 +110,7 @@ module MongoVersionable
       #
       # Warning: This method can cause conflicts if versions to the object are
       # concurrently snapped while it is running.
-      def inject_historical_version(t, new_ver)
+      def inject_historical_version(t, new_ver, default_version)
         id = new_ver['_id']
         if t > last_version_at(id)
           snap_version(new_ver, t)
@@ -143,10 +145,62 @@ module MongoVersionable
         # Split the time,version tuples into those that are before the injection
         # and those that are later.
         earlier, later = versions.partition{|tm,v| tm < t}
+        
+        # There should be at least one later version, otherwise we would have just
+        # snapped new_ver on the end.
+        raise Error, "Should have at least one later version" if later.empty?
 
-        # Make a new list including the injected version
-        versions = earlier + [[t,new_ver]] + later
+        # MongoVersionable stores versions as reverse diffs, i.e., it stores the
+        # latest version and then historical versions are reconstructed by applying
+        # diffs in reverse chronological order. But to roll changes forward I need
+        # diffs going in the reverse direction. I take the list of versions, construct
+        # diffs going forward, add the diff corresponding to the changes introduced
+        # in new_ver, apply the new set of diffs to get an updated list of versions,
+        # and then resnap these versions using the time stamps to recreate the 
+        # updated history. While convoluted, this seemed conceptually easiest.
+        forward_diffs = (1 ... later.length).collect do |i|
+          t_a, a = later[i-1]
+          t_b, b = later[i]
+          [t_b, Diff.new(a,b).hash]
+        end
 
+        # Let e be the last version before the injected version. If there is no version
+        # before new_ver, when we use #version_originale to make a pretend one. We
+        # first apply the diff between e and new_ver to e, getting us to new_ver.
+        # We then apply the diff between e and the version originally after it.
+        # This will add on any changes going to that version, keeping the changes
+        # introduced in new_ver. We continue in this way applying the rest of the
+        # changes.
+        if earlier.empty?
+          e = default_version
+          versions = []
+        else
+          e = earlier.last[1]
+          # The version tuples before new_ver are unaffected.
+          versions = earlier
+        end
+
+        t_l, l = later.first
+        diff_to_l = Diff.new(e,l).hash
+
+        # Immediately before applying the diffs forming the later versions, we'll need
+        # to apply the diff to version l
+        forward_diffs.unshift [t_l, diff_to_l]
+
+        # If versions is empty, then we can just start with new_ver, otherwise we'll
+        # need to get there from the previous version.
+        if versions.empty?
+          versions.push [t,new_ver]
+        else
+          diff_to_new_ver = Diff.new(e, new_ver).hash
+          forward_diffs.unshift [t,diff_to_new_ver]
+        end
+
+        # Now apply the diffs.
+        forward_diffs.each do |tm,d|
+          versions.push [tm,Diff.apply_to(versions.last[1], d)]
+        end
+        
         # Re-snap all the versions
         versions.each do |t,ver|
           snap_version ver, t
@@ -310,7 +364,8 @@ module MongoVersionable
 
     def inject_historical_version_at(t)
       new_tip = send(version_serialization_method)
-      self.class.inject_historical_version t, new_tip
+      default = version_originale.send(version_serialization_method)
+      self.class.inject_historical_version t, new_tip, default
     end
 
     # Use the configured serialization method to write a version of the current 
@@ -333,7 +388,8 @@ module MongoVersionable
 
     # Find an old version of this instance
     def reconstruct_version_at(t)
-      self_class.reconstruct_version_at t, versionable_deduce_id
+      default = version_originale.send(version_serialization_method)
+      self_class.reconstruct_version_at t, versionable_deduce_id, default
     end
 
     # Override this method if you need another way of getting the id
@@ -343,6 +399,18 @@ module MongoVersionable
 
     def last_version_at
       self.class.last_version_at versionable_deduce_id
+    end
+
+    # A method that must be implemented to handle the case when modifying history
+    # before there was a first version. It should return a copy of the instance
+    # with properties set to the default state, but keeping its identity the same,
+    # such as preserving id and other identifying information. This is necessary
+    # because the version version snapped is already a modified version, and
+    # there's no uninformed way to know how the true default object would have
+    # looked, as that is domain specific. Care should be taken not to persist this
+    # version or cause other database-altering side-effects.
+    def version_originale
+      raise NotImplementedError, "Should implement #version_originale"
     end
   end
 end

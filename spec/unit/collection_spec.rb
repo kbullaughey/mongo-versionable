@@ -11,6 +11,12 @@ describe "Collection unit" do
     KeepsDiffs.set_versionable_defaults
   end
 
+  it "raises NotImplementedError without version_originale" do
+    expect {
+      KeepsDiffs.new.version_originale
+    }.to raise_error(NotImplementedError)
+  end
+
   it "should have a default number of inter-tip diffs" do
     KeepsDiffs.versions_between_tips.should == 20
   end
