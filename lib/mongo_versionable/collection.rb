@@ -108,8 +108,6 @@ module MongoVersionable
       #
       # Warning: This method can cause conflicts if versions to the object are
       # concurrently snapped while it is running.
-      #
-      # TODO: Write specs for cases involving multiple tips.
       def inject_historical_version(t, new_ver)
         id = new_ver['_id']
         if t > last_version_at(id)
