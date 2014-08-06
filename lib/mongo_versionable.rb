@@ -2,6 +2,7 @@ require 'active_support/core_ext/string/inflections'
 require 'mongo'
 
 module MongoVersionable
+  @config = {}
   def self.reconnect_method(&block)
     raise ArgumentError, "Must give block" unless block_given?
     @reconnect = block
@@ -42,14 +43,9 @@ module MongoVersionable
     connection[config[:database]]
   end
 
-  def self.execution_context_id
-    "#{Process.pid}:#{Thread.current.object_id}"
-  end
-
   # I think this will be threadsafe
   def self.config
-    @config ||= {}
-    @config[execution_context_id] ||= {}
+    @config
   end
 end
 
